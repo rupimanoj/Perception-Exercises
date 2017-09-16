@@ -48,8 +48,7 @@ def pcl_callback(pcl_msg):
 	ec = white_cloud.make_EuclideanClusterExtraction()
 	ec.set_ClusterTolerance(0.015)
 	ec.set_MinClusterSize(200)   #large enough to ignore minute samples
-	ec.set_MaxClusterSize(3000)	 #not so large to combie two objects..should be a deciding parameter..
-									#MInclusterSIze plays major role
+	ec.set_MaxClusterSize(3000)	 #not so large to combie two objects..should be a deciding parameter..									#MInclusterSIze plays major role
 	ec.set_SearchMethod(tree)
 	cluster_indices = ec.Extract()
 

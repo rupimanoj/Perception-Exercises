@@ -141,6 +141,9 @@ To transform the predicted target into label , `inverse_transform' API from Labe
 For further processing of object labels and point clouds are stored in 'detected_objects'.
 Detected objects are published using `detected_objects_pub` publisher. <br/>
 
+![alt text][cluster_3_msg]
+![alt text][object_iden_msg]
+
 `detected_objects_pub.publish(detected_objects)` <br/>
 
 ```python

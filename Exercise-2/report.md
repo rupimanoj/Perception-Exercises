@@ -32,7 +32,12 @@ cluster_indices = ec.Extract()
 ```
 `cluster_indices` is list of elements where all the points belonging to one cluster will be grouped together in one elemnt. To visualize or get an idea, `cluster_indices` looks like below lisy <br/>
 
-cluster_indices = [[points indices from white cloud belonging to cluster1],[points indices from white cloud belonging to cluster2],[points indices from white cloud belonging to cluster3].....]
+``` python
+cluster_indices = [
+			[points indices from white cloud belonging to cluster1],
+			[points indices from white cloud belonging to cluster2],
+			[points indices from white cloud belonging to cluster3].....]
+```
 
 Once cluster cloud points are grouped together as in the above `cluster_indices`, we traverse through each cloud indices and create `color_cluster_point_list` where each cluster group is marked with different color.  
 

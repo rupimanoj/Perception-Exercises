@@ -30,7 +30,7 @@ ec.set_MaxClusterSize(3000)
 ec.set_SearchMethod(tree)
 cluster_indices = ec.Extract()
 ```
-`cluster_indices` is list of elements where all the points belonging to one cluster will be grouped together in one elemnt. To visualize or get an idea, `cluster_indices` looks like below lisy <br/>
+After this `cluster_indices` stores list of elements where all the points belonging to one cluster will be grouped together in one list element. To visualize or get an idea, `cluster_indices` looks like below lisy <br/>
 
 ``` python
 cluster_indices = [

@@ -1,68 +1,182 @@
-# Object Recognition with Python, ROS and PCL
+[//]: # (Image References)
 
-This exercise builds on what you've done in Exercises 1 and 2. If you haven't done those yet, you should start by completing the [Lesson for Exercise-1](https://classroom.udacity.com/nanodegrees/nd209/parts/586e8e81-fc68-4f71-9cab-98ccd4766cfe/modules/e5bfcfbd-3f7d-43fe-8248-0c65d910345a/lessons/8d51e0bf-0fa1-49a7-bd45-e062c4a2121f/concepts/02cbb56e-9e54-4c08-977b-df149cb0bca4) and the [Lesson for Exercise-2](https://classroom.udacity.com/nanodegrees/nd209/parts/586e8e81-fc68-4f71-9cab-98ccd4766cfe/modules/e5bfcfbd-3f7d-43fe-8248-0c65d910345a/lessons/2cc29bbd-5c51-4c3e-b238-1282e4f24f42/concepts/02428d63-6f79-40dc-8105-31eda8e0def4?contentVersion=1.0.0&contentLocale=en-us). 
+[cluster_3_msg]: ./misc_images/cluster_3.PNG
+[flat_top_msg]: ./misc_images/flat_top.PNG
+[object_iden_msg]: ./misc_images/object_identification.PNG
+[object_reco_msg]: ./misc_images/object_reco_3.PNG
+[CM_1]: ./misc_images/figure_1.png
+[CM_2]: ./misc_images/figure_2.png
 
-In this exercise, you will continue building up your perception pipeline in ROS.  Here you are provided with a very simple gazebo world, where you can extract color and shape features from the objects that were sitting on the table from Exercise-1 and Exercise-2, in order to train a classifier to detect them.
+## Object Recognition Pipeline:
+
+As part of this project, we will identify each object placed on table top.
+![alt text][object_reco_msg]
+
+###Collecting training data:
+
+To collect the training data [capture_features.py](https://github.com/rupimanoj/Perception-Exercises/blob/master/Exercise-3/sensor_stick/scripts/capture_features.py) script is used, which in turn uses functions `compute_color_histograms` and `compute_normal_histograms` to capture features.
 
 
-## Setup
-* If you completed Exercises 1 and 2 you will already have a `sensor_stick` folder in your `~/catkin_ws/src` directory.  You should replace that folder with the `sensor_stick` folder contained in this repository and add the Python script you wrote for Exercise-2 to the `scripts` directory. 
 
-* If you do not already have a `sensor_stick` directory, first copy/move the `sensor_stick` folder to the `~/catkin_ws/src` directory of your active ros workspace. 
+##### Color histograms features:
 
-* Make sure you have all the dependencies resolved by using the `rosdep install` tool and running `catkin_make`:  
- 
-```sh
-$ cd ~/catkin_ws
-$ rosdep install --from-paths src --ignore-src --rosdistro=kinetic -y
-$ catkin_make
+To capture histogram features, by default `nbins=32` ( number of bins the color pixel values are divided into). As there are three channels  (R,G,B, /H,S,V) total number of color histogram features captured per each point cloud image will be 96. TO remove lighting effects of captured data, it is preferable to use HSV features.
+
+``` python
+def compute_color_histograms(cloud, using_hsv=True):
+
+    point_colors_list = []
+
+    for point in pc2.read_points(cloud, skip_nans=True):
+        rgb_list = float_to_rgb(point[3])
+        if using_hsv:
+            point_colors_list.append(rgb_to_hsv(rgb_list) * 255)
+        else:
+            point_colors_list.append(rgb_list)
+
+    channel_1_vals = []
+    channel_2_vals = []
+    channel_3_vals = []
+
+    for color in point_colors_list:
+        channel_1_vals.append(color[0])
+        channel_2_vals.append(color[1])
+        channel_3_vals.append(color[2])
+    
+    h_hist = np.histogram(channel_1_vals,bins = nbins , range = bins_range)
+    s_hist = np.histogram(channel_2_vals, bins= nbins, range = bins_range)
+    v_hist = np.histogram(channel_3_vals, bins = nbins , range = bins_range)
+
+    features_hist = np.concatenate((h_hist[0],s_hist[0],v_hist[0])).astype(np.float64)
+    norm_features = features_hist/(np.sum(features_hist))
+    return norm_features
+
 ```
 
-* If it's not already there, add the following lines to your `.bashrc` file  
+##### Noramals histogram features:
+
+Similar to color histograms, normal histogram features are captured. Instead of 3 color channels, here X,Y,Z normal components features are captured. Total number of features will be 96.
+
+``` python
+def compute_normal_histograms(normal_cloud):
+    
+    norm_x_vals = []
+    norm_y_vals = []
+    norm_z_vals = []
+
+    for norm_component in pc2.read_points(normal_cloud,
+                                          field_names = ('normal_x', 'normal_y', 'normal_z'),
+                                          skip_nans=True):
+        norm_x_vals.append(norm_component[0])
+        norm_y_vals.append(norm_component[1])
+        norm_z_vals.append(norm_component[2])
+
+    x_hist = np.histogram(norm_x_vals,bins = nbins , range = bins_range)
+    y_hist = np.histogram(norm_y_vals, bins= nbins, range = bins_range)
+    z_hist = np.histogram(norm_z_vals, bins = nbins , range = bins_range)
+
+    features_hist = np.concatenate((x_hist[0],y_hist[0],z_hist[0])).astype(np.float64)
+    norm_features = features_hist/(np.sum(features_hist))
+
+    return norm_features
 
 ```
-export GAZEBO_MODEL_PATH=~/catkin_ws/src/sensor_stick/models
-source ~/catkin_ws/devel/setup.bash
+
+To capture features, training environment is launched in Gazebo and `capture_features` rosnode is invoked.
+
+`roslaunch sensor_stick training.launch`
+`rosrun sensor_stick capture_features.py`
+
+Each object staed in array `models` is captured for 50 times by keeping objects in different orientations. Features are captured in `training_set.sav file`.
+
+``` python
+
+    models = [\
+       'beer',
+       'bowl',
+       'create',
+       'disk_part',
+       'hammer',
+       'plastic_cup',
+       'soda_can']
+       
 ```
 
-## Preparing for training
+###Training classifier using SVM:
 
-Launch the `training.launch` file to bring up the Gazebo environment: 
+Using SVM model and traing data from 'training_set.sav' file, classifier is trained.
 
-```sh
-$ roslaunch sensor_stick training.launch
+For SVM classifier in this exercise, linear kernel is used and cross validation for 5 folds is used.
+
+TO launch SVM classifier trainer rosnode is launched using below command.
+
+`rosrun sensor_stick train_svm.py`
+
+After classifier is learned, on training data below confusion matrix is obtained.
+
+![alt text][CM_1]
+![alt text][CM_2]
+
+SVM Model is saved in model.sav file.
+
+###Classifying objects and Tagging with appropriate names:
+
+
+Trained model is loaded using python pickle module.
+
+``` python
+
+model = pickle.load(open('model.sav', 'rb'))
+clf = model['classifier']
+encoder = LabelEncoder()
+encoder.classes_ = model['classes']
+scaler = model['scaler']
+
 ```
-You should see an empty scene in Gazebo with only the sensor stick robot.
 
-## Capturing Features
-Next, in a new terminal, run the `capture_features.py` script to capture and save features for each of the objects in the environment.  This script spawns each object in random orientations (default 5 orientations per object) and computes features based on the point clouds resulting from each of the random orientations.
+By following steps in Exercise-1 and Exercise-2, individual objects can be extracted using Elucidean clustering techniques.
+USing individual objects, features are calculated using `compute_color_histograms` and `compute_normal_histograms`.
+Once features are obtained, object can be predicted using `clf.predict` 
+To transform the predicted target into label , `inverse_transform' API from LabelEncoder class is used.
+For further processing of object labels and point clouds are stored in 'detected_objects'.
+Detected objects are published using `detected_objects_pub` publisher.
 
-```sh
-$ rosrun sensor_stick capture_features.py
+`detected_objects_pub.publish(detected_objects)`
+
+```python
+
+detected_objects_labels = []
+detected_objects = []
+# Classify the clusters! (loop through each detected cluster one at a time)
+for index, pts_list in enumerate(cluster_indices):
+	 # Grab the points for the cluster       
+	pcl_cluster = obj_msg.extract(pts_list)
+	pcl_cluster_ros = pcl_to_ros(pcl_cluster)
+	# Compute the associated feature vector
+	chists = compute_color_histograms(pcl_cluster_ros)
+	normals = get_normals(pcl_cluster_ros)
+	nhists = compute_normal_histograms(normals)
+	feature = np.concatenate((chists, nhists))
+	# Make the prediction
+	prediction = clf.predict(scaler.transform(feature.reshape(1,-1)))
+	label = encoder.inverse_transform(prediction)[0]
+	detected_objects_labels.append(label)
+	# Publish a label into RViz
+	label_pos = list(white_cloud[pts_list[0]])
+	label_pos[2] += .4
+	object_markers_pub.publish(make_label(label,label_pos, index))
+
+	# Add the detected object to the list of detected objects.
+	do = DetectedObject()
+	do.label = label
+	do.cloud = pcl_cluster_ros
+	detected_objects.append(do)
+
+# Publish the list of detected objects
+rospy.loginfo('Detected {} objects: {}'.format(len(detected_objects_labels), detected_objects_labels))
+detected_objects_pub.publish(detected_objects)
+
 ```
 
-The features will now be captured and you can watch the objects being spawned in Gazebo. It should take 5-10 sec. for each random orientations (depending on your machine's resources) so with 7 objects total it takes awhile to complete. When it finishes running you should have a `training_set.sav` file.
 
-## Training
-
-Once your feature extraction has successfully completed, you're ready to train your model. First, however, if you don't already have them, you'll need to install the `sklearn` and `scipy` Python packages.  You can install these using `pip`:
-
-```sh
-pip install sklearn scipy
-```
-
-After that, you're ready to run the `train_svm.py` model to train an SVM classifier on your labeled set of features.
-
-```sh
-$ rosrun sensor_stick train_svm.py
-```
-**Note:  Running this exercise out of the box your classifier will have poor performance because the functions `compute_color_histograms()` and `compute_normal_histograms()` (within `features.py` in /sensor_stick/src/sensor_stick) are generating random junk.  Fix them in order to generate meaningful features and train your classifier!**
-
-## Classifying Segmented Objects
-
-If everything went well you now have a trained classifier and you're ready to do object recognition!  First you have to build out your node for segmenting your point cloud.  This is where you'll bring in your code from Exercises 1 and 2.
-
-Make yourself a copy of the `template.py` file in the `sensor_stick/scripts/` directory and call it something like `object_recognition.py`.  Inside this file, you'll find all the TODO's from Exercises 1 and 2 and you can simply copy and paste your code in there from the previous exercises.  
-
-The new code you need to add is listed under the Exercise-3 TODO's in the `pcl_callback()` function.  You'll also need to add some new publishers for outputting your detected object clouds and label markers.  For the step-by-step instructions on what to add in these Exercise-3 TODOs, see the [lesson in the classroom](https://classroom.udacity.com/nanodegrees/nd209/parts/586e8e81-fc68-4f71-9cab-98ccd4766cfe/modules/e5bfcfbd-3f7d-43fe-8248-0c65d910345a/lessons/81e87a26-bd41-4d30-bc8b-e747312102c6/concepts/dfab1b50-2efd-428d-bfd9-d1df0544541e).
 

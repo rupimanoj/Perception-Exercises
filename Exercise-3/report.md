@@ -12,7 +12,7 @@
 As part of this project, we will identify each object placed on table top.
 ![alt text][object_reco_msg]
 
-###Collecting training data:
+### Collecting training data:
 
 To collect the training data [capture_features.py](https://github.com/rupimanoj/Perception-Exercises/blob/master/Exercise-3/sensor_stick/scripts/capture_features.py) script is used, which in turn uses functions `compute_color_histograms` and `compute_normal_histograms` to capture features.
 
@@ -84,7 +84,7 @@ def compute_normal_histograms(normal_cloud):
 
 To capture features, training environment is launched in Gazebo and `capture_features` rosnode is invoked.
 
-`roslaunch sensor_stick training.launch`
+`roslaunch sensor_stick training.launch` <br/>
 `rosrun sensor_stick capture_features.py`
 
 Each object staed in array `models` is captured for 50 times by keeping objects in different orientations. Features are captured in `training_set.sav file`.
@@ -99,10 +99,10 @@ Each object staed in array `models` is captured for 50 times by keeping objects 
        'hammer',
        'plastic_cup',
        'soda_can']
-       
+
 ```
 
-###Training classifier using SVM:
+### Training classifier using SVM:
 
 Using SVM model and traing data from 'training_set.sav' file, classifier is trained.
 
@@ -119,7 +119,7 @@ After classifier is learned, on training data below confusion matrix is obtained
 
 SVM Model is saved in model.sav file.
 
-###Classifying objects and Tagging with appropriate names:
+### Classifying objects and Tagging with appropriate names:
 
 
 Trained model is loaded using python pickle module.
@@ -134,14 +134,14 @@ scaler = model['scaler']
 
 ```
 
-By following steps in Exercise-1 and Exercise-2, individual objects can be extracted using Elucidean clustering techniques.
+By following steps in [Exercise-1](https://github.com/rupimanoj/Perception-Exercises/blob/master/Exercise-1/report.md)  and [Exercise-2](https://github.com/rupimanoj/Perception-Exercises/blob/master/Exercise-2/report.md) , individual objects can be extracted using Elucidean clustering techniques.
 USing individual objects, features are calculated using `compute_color_histograms` and `compute_normal_histograms`.
 Once features are obtained, object can be predicted using `clf.predict` 
 To transform the predicted target into label , `inverse_transform' API from LabelEncoder class is used.
 For further processing of object labels and point clouds are stored in 'detected_objects'.
-Detected objects are published using `detected_objects_pub` publisher.
+Detected objects are published using `detected_objects_pub` publisher. <br/>
 
-`detected_objects_pub.publish(detected_objects)`
+`detected_objects_pub.publish(detected_objects)` <br/>
 
 ```python
 
